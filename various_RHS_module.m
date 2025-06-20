@@ -12,36 +12,41 @@ r0 = [3950.48; 4152.89; 3905.89];   % km  (400 km 고도 방향 유지)
 v0 = [-5.2810; 5.0242; 0.0328];     % km/s (수직 방향 속도)
 
 T_orbit = 2*pi*sqrt(norm(r0)^3/398600.4418);                 % example orbital period (sec)
-
+OneDay = 86164.1;
+tspan = 5*OneDay;
 
 %% 1) 2-Body
 P1.mu = 398600.4418;
 [t1,r1,v1] = ode_propagation(r0,v0,[0 T_orbit],@rhs_2body,P1);
 
-%% 2) Exponential Drag
-P2 = struct('mu',398600.4418,'Re',6378.1363,'Cd',2.2,'ApM',0.01,...
+%% 2) J2
+P2 = struct('mu',398600.4418,'Re',6378.1363,'J2',1.0826269e-3);
+[t2,r2,v2] = ode_propagation(r0,v0,[0 T_orbit],@rhs_J2,P2);
+
+%% 3) Exponential Drag
+P3 = struct('mu',398600.4418,'Re',6378.1363,'Cd',2.2,'ApM',0.01,...
             'H',60.828,'h_ref',450,'we',[0;0;7.2921e-5]);
-[t2,r2,v2] = ode_propagation(r0,v0,[0 T_orbit],@rhs_drag_exp,P2);
+[t3,r3,v3] = ode_propagation(r0,v0,[0 T_orbit],@rhs_drag_exp,P3);
 
 
-%% 3) NRLMSISE Drag
-P3 = P2;                                   % 기본값 재사용
-P3.datetime0 = datetime(2018,1,4,'TimeZone','UTC');
+%% 4) NRLMSISE Drag
+P4 = P3;                                   % 기본값 재사용
+P4.datetime0 = datetime(2018,1,4,'TimeZone','UTC');
 
-[t3,r3,v3] = ode_propagation(r0,v0,[0 T_orbit],@rhs_drag_nrlmsise,P3);
+[t4,r4,v4] = ode_propagation(r0,v0,[0 T_orbit],@rhs_drag_nrlmsise,P4);
 
-%% 4) J2 + Exponential Drag
-P4 = struct('mu',398600.4418,'Re',6378.1363,'Cd',2.2,'ApM',0.01,...
+%% 5) J2 + Exponential Drag
+P5 = struct('mu',398600.4418,'Re',6378.1363,'Cd',2.2,'ApM',0.01,...
             'H',60.828,'h_ref',450,'we',[0;0;7.2921e-5],'J2',1.0826269e-3);
-[t4, r4, v4] = ode_propagation(r0, v0, [0 T_orbit], @rhs_J2_drag_exp, P4);
+[t5, r5, v5] = ode_propagation(r0, v0, [0 T_orbit], @rhs_J2_drag_exp, P5);
 
 
-%% 5) J2 + NRLMSISE Drag
-P5 = P4; % 기본값 재사용
-P5.datetime0 = datetime(2018,1,4,'TimeZone','UTC');
-[t5, r5, v5] = ode_propagation(r0, v0, [0 T_orbit], @rhs_J2_drag_nrlmsise, P5);
+%% 6) J2 + NRLMSISE Drag
+P6 = P5; % 기본값 재사용
+P6.datetime0 = datetime(2018,1,4,'TimeZone','UTC');
+[t6, r6, v6] = ode_propagation(r0, v0, [0 tspan], @rhs_J2_drag_nrlmsise, P6);
 
-
+%%
 figure;
 
 % ---- 1) 2-Body
@@ -49,28 +54,34 @@ subplot(2,3,1);
 plot3(r1(:,1), r1(:,2), r1(:,3), 'k'); grid on; axis equal
 title('2-Body'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
 
-% ---- 2) Exp Drag
+% ---- 2) J2
 subplot(2,3,2); 
 plot3(r2(:,1), r2(:,2), r2(:,3), 'r'); grid on; axis equal
-title('Exponential Drag'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
+title('J2'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
 
-% ---- 3) NRLMSISE Drag
+% ---- 3) Exp Drag
 subplot(2,3,3); 
 plot3(r3(:,1), r3(:,2), r3(:,3), 'b'); grid on; axis equal
-title('NRLMSISE Drag'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
+title('Exp Drag'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
 
-% ---- 4) J2 + Exp Drag
+% ---- 4) NRLMSISE Drag
 subplot(2,3,4); 
 plot3(r4(:,1), r4(:,2), r4(:,3), 'c'); grid on; axis equal
-title('J2 + Exp Drag'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
+title('NRLMSISE Drag'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
 
-% ---- 5) J2 + NRLMSISE Drag
+% ---- 5) J2 + Exp Drag
 subplot(2,3,5); 
 plot3(r5(:,1), r5(:,2), r5(:,3), 'm'); grid on; axis equal
+title(' J2 + Exp Drag'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
+
+% ---- 6) J2 + NRLMSISE Drag
+subplot(2,3,6); 
+plot3(r6(:,1), r6(:,2), r6(:,3), 'm'); grid on; axis equal
 title('J2 + NRLMSISE'); xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
 
 % ---- 6) 전체 비교
-subplot(2,3,6); hold on; grid on; axis equal
+figure(2);
+hold on; grid on; axis equal
 plot3(r1(:,1), r1(:,2), r1(:,3), 'k');
 plot3(r2(:,1), r2(:,2), r2(:,3), 'r');
 plot3(r3(:,1), r3(:,2), r3(:,3), 'b');
@@ -82,7 +93,7 @@ xlabel('x [km]'); ylabel('y [km]'); zlabel('z [km]');
 
 
 
-
+%%
 function [t_out, r_out, v_out] = ode_propagation(r0, v0, tspan, rhs_func,Param, reltol)
 % -------------------------------------------------------------------------
 % Title    : ODE-Based Orbit Propagation Framework (Modular RHS)
